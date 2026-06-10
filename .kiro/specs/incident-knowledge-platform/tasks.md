@@ -1,0 +1,213 @@
+# Implementation Plan: Incident Knowledge Platform
+
+## Overview
+
+This plan evolves the existing AI Log Analyzer (Spring Boot + Thymeleaf + Ollama) into an Incident Knowledge Platform with PostgreSQL persistence, similarity matching, and context-enriched LLM analysis. Tasks are ordered to build foundational layers first (dependencies, schema, models), then services, then integration and API, finishing with wiring the enhanced pipeline into the existing workflow.
+
+## Tasks
+
+- [ ] 1. Add dependencies and configure PostgreSQL
+  - [ ] 1.1 Update pom.xml with new dependencies
+    - Add `spring-boot-starter-data-jpa`, `postgresql` (runtime scope), `flyway-core`, `spring-boot-starter-validation`
+    - Add `net.jqwik:jqwik` (test scope), `org.testcontainers:postgresql` (test scope), `org.testcontainers:junit-jupiter` (test scope)
+    - _Requirements: 4.6, 7.4_
+  - [ ] 1.2 Configure application.properties for PostgreSQL and Flyway
+    - Add `spring.datasource.*` properties with sensible defaults (localhost:5432)
+    - Add `spring.jpa.hibernate.ddl-auto=validate` (Flyway manages schema)
+    - Add `spring.flyway.enabled=true` and `spring.flyway.locations=classpath:db/migration`
+    - Add configuration to allow startup when PostgreSQL is unavailable (`spring.datasource.hikari.initialization-fail-timeout=-1`)
+    - _Requirements: 4.6, 7.4_
+  - [ ] 1.3 Create Flyway migration V1__create_knowledge_store_schema.sql
+    - Create `incident_analyses` table with all columns (UUID PK, JSONB fields, TEXT[] for exception_types)
+    - Create `canonical_events` table with foreign key to incident_analyses (ON DELETE CASCADE)
+    - Create indexes: idx_analyses_service, idx_analyses_date, idx_analyses_exception_types (GIN), idx_events_incident, idx_events_type
+    - Place in `src/main/resources/db/migration/`
+    - _Requirements: 4.3, 4.4, 4.6_
+
+- [ ] 2. Implement data models and validation
+  - [ ] 2.1 Create CanonicalEvent record
+    - Create `com.loganalyzer.model.CanonicalEvent` as a Java record with fields: id (UUID), incidentId (UUID), timestamp (Instant), level (String), service (String), eventType (String), message (String)
+    - Add Jakarta validation annotations: `@NotNull` on timestamp, level, eventType, message; level restricted to {ERROR, WARN, INFO, DEBUG, TRACE}; eventType restricted to {EXCEPTION, ERROR, WARNING, STACK_TRACE, INFO}; message `@Size(max=4000)`
+    - _Requirements: 8.1, 8.2, 8.9_
+  - [ ] 2.2 Create IncidentAnalysis record
+    - Create `com.loganalyzer.model.IncidentAnalysis` with fields: incidentId (UUID), analysisDate (Instant), service (String), timeRange (TimeRange), sourceFilename (String), errorSummary (ErrorSummary), rootCause (String), impact (String), recommendations (List<String>), llmAnalysis (AiAnalysis), exceptionCounts (Map<String,Integer>), exceptionTypes (Set<String>), errorDistribution (Map<String,Double>)
+    - Create nested records: `TimeRange(Instant start, Instant end)` and `ErrorSummary(int totalEvents, int totalExceptions, int uniqueExceptionTypes, Map<String,Integer> exceptionCounts)`
+    - Add validation: timeRange.start <= timeRange.end, exceptionTypes == exceptionCounts.keySet(), errorDistribution sums to ~100%
+    - _Requirements: 2.2, 2.3, 8.4, 8.6, 8.7_
+  - [ ] 2.3 Create ScoredMatch record
+    - Create `com.loganalyzer.model.ScoredMatch` with fields: incidentId (UUID), service (String), analysisDate (Instant), similarityScore (double), rootCause (String), matchReasons (Map<String,String>)
+    - Add validation: similarityScore in [0.0, 1.0], matchReasons non-empty
+    - _Requirements: 8.3, 8.5_
+  - [ ] 2.4 Create a DataModelValidator utility class
+    - Validate IncidentAnalysis consistency: exceptionTypes == keySet(exceptionCounts), errorDistribution sums to ~100 (±0.1)
+    - Validate TimeRange: start <= end
+    - Validate ScoredMatch: score bounded, matchReasons non-empty
+    - Throw descriptive validation exceptions on failure
+    - _Requirements: 8.4, 8.5, 8.6, 8.7, 8.8, 8.10_
+  - [ ]* 2.5 Write property tests for data model validation (jqwik)
+    - **Property 11: Error Distribution Sum Invariant** — For any valid exceptionCounts, derived errorDistribution percentages sum to ~100
+    - **Property 12: ExceptionTypes Derivation Consistency** — For any IncidentAnalysis, exceptionTypes equals keySet of exceptionCounts
+    - **Property 18: TimeRange Validity** — For any generated TimeRange, start <= end
+    - **Validates: Requirements 2.4, 2.5, 8.4, 8.6, 8.7**
+
+- [ ] 3. Implement CanonicalEventTransformer
+  - [ ] 3.1 Create CanonicalEventTransformer service class
+    - Implement `List<CanonicalEvent> transform(String rawLogContent)` — split by newlines, skip blank lines, parse each line
+    - Implement `CanonicalEvent parseLine(String logLine)` — extract timestamp, level, service, eventType, message
+    - Implement timestamp extraction supporting formats: "yyyy-MM-dd HH:mm:ss.SSS", "yyyy-MM-ddTHH:mm:ss.SSS", "yyyy/MM/dd HH:mm:ss", "dd/MMM/yyyy:HH:mm:ss Z"; fallback to current time
+    - Implement level detection (case-insensitive): ERROR, WARN/WARNING→WARN, INFO, DEBUG, TRACE; default to INFO
+    - Implement service detection from fully-qualified class name or bracketed identifier; default to "UNKNOWN"
+    - Implement eventType classification: EXCEPTION (Java exception class), ERROR (level ERROR without exception), WARNING (level WARN), STACK_TRACE (line starts with whitespace+"at "), INFO (default)
+    - Truncate message to 4000 bytes at valid UTF-8 character boundary
+    - Preserve input ordering of events
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10_
+  - [ ]* 3.2 Write property tests for CanonicalEventTransformer (jqwik)
+    - **Property 1: Canonical Event Field Validity** — For any log content, every event has valid level and eventType values
+    - **Property 2: Event Ordering Preservation** — For any multi-line input, events maintain source order
+    - **Property 3: Message Truncation Invariant** — For any log line, resulting message ≤ 4000 characters
+    - **Property 20: Timestamp Extraction Round-Trip** — For any line with a supported timestamp format, extracted timestamp represents the same point in time
+    - **Validates: Requirements 1.4, 1.5, 1.6, 1.7, 1.9, 1.10, 8.1, 8.2**
+  - [ ]* 3.3 Write unit tests for CanonicalEventTransformer
+    - Test parsing Spring Boot default log format
+    - Test parsing custom timestamp formats (all four supported patterns)
+    - Test stack trace detection (lines starting with whitespace + "at ")
+    - Test empty/blank input returns empty list
+    - Test default level assignment when no level token found
+    - Test service detection from class names and bracketed identifiers
+    - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8_
+
+- [ ] 4. Implement KnowledgeStoreRepository
+  - [ ] 4.1 Create JPA entity classes for database mapping
+    - Create `IncidentAnalysisEntity` mapped to `incident_analyses` table with proper column mappings, JSONB converters for exceptionCounts/errorDistribution/recommendations/llmAnalysis, and TEXT[] converter for exceptionTypes
+    - Create `CanonicalEventEntity` mapped to `canonical_events` table with ManyToOne relationship to IncidentAnalysisEntity
+    - Create mapper methods to convert between domain records and entities
+    - _Requirements: 4.1, 4.2, 4.4_
+  - [ ] 4.2 Create KnowledgeStoreRepository implementation
+    - Implement `save(IncidentAnalysis)` — validate before persist, map to entity, save via JPA
+    - Implement `saveEvents(UUID incidentId, List<CanonicalEvent> events)` — batch insert in groups of 1000 using JdbcTemplate.batchUpdate()
+    - Implement `findById(UUID)` — query and map back to domain record
+    - Implement `findAll(int page, int size)` — paginated query ordered by analysisDate DESC
+    - Implement `findCandidatesForSimilarity(String service, Set<String> exceptionTypes, UUID excludeId)` — query with service match OR exception_types array overlap (&&), exclude self, limit 50, order by analysisDate DESC
+    - Wrap incident + event inserts in `@Transactional` with rollback on any failure
+    - _Requirements: 4.1, 4.2, 4.5, 4.7, 3.11_
+  - [ ]* 4.3 Write integration tests with Testcontainers
+    - Test save and retrieve round-trip for IncidentAnalysis
+    - Test cascade delete of events when incident is deleted
+    - Test findCandidatesForSimilarity with service and exception_types overlap
+    - Test batch insertion of >1000 events
+    - Test transactional rollback when a batch fails
+    - **Property 16: Persistence Round-Trip** — Save then findById produces equivalent field values
+    - **Validates: Requirements 4.1, 4.2, 4.3, 4.5, 4.7**
+
+- [ ] 5. Checkpoint - Ensure foundational layers compile and tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 6. Implement SimilarityMatchingService
+  - [ ] 6.1 Create SimilarityMatchingService class
+    - Implement `List<ScoredMatch> findSimilar(IncidentAnalysis current, int maxResults)` — query candidates from repository, score each, filter by threshold 0.3, sort descending, limit to maxResults
+    - Implement `double calculateSimilarityScore(IncidentAnalysis candidate, IncidentAnalysis current)` — weighted sum: service (0.30) + exceptionType (0.35) + eventCategory (0.15) + errorDistribution (0.20), clamped to [0.0, 1.0]
+    - Implement `double serviceMatchScore(String s1, String s2)` — returns 1.0 for exact match, 0.0 otherwise
+    - Implement `double exceptionTypeOverlap(Set<String> t1, Set<String> t2)` — Jaccard index: |intersection|/|union|; 1.0 if both empty; 0.0 if one empty
+    - Implement `double eventCategoryOverlap(Map<String,Integer> c1, Map<String,Integer> c2)` — normalized overlap of exception count categories
+    - Implement `double errorDistributionSimilarity(Map<String,Double> d1, Map<String,Double> d2)` — cosine similarity; 1.0 if both empty; 0.0 if one empty
+    - Implement `Map<String,String> buildMatchReasons(IncidentAnalysis candidate, IncidentAnalysis current)` — explain which factors contributed to the score
+    - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 3.11_
+  - [ ]* 6.2 Write property tests for SimilarityMatchingService (jqwik)
+    - **Property 4: Similarity Score Boundedness** — For any two IncidentAnalysis objects, score ∈ [0.0, 1.0]
+    - **Property 5: Similarity Symmetry** — For any A and B, score(A,B) == score(B,A)
+    - **Property 6: Self-Exclusion** — For any incident queried, results do not contain its own ID
+    - **Property 7: Jaccard Index Correctness** — For any two sets, exceptionTypeOverlap returns |A∩B|/|A∪B|
+    - **Property 8: Cosine Similarity Correctness** — For any two non-negative distribution maps, result equals cosine formula and is in [0.0, 1.0]
+    - **Property 9: Threshold Filtering** — All returned ScoredMatches have score >= 0.3
+    - **Property 10: Result Ordering Guarantee** — Returned list is sorted by score descending
+    - **Property 19: MatchReasons Non-Empty** — Every ScoredMatch has at least one matchReason entry
+    - **Validates: Requirements 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 3.10, 8.3, 8.5**
+  - [ ]* 6.3 Write unit tests for SimilarityMatchingService
+    - Test identical incidents score 1.0
+    - Test completely different incidents (different service, no overlapping exceptions) score 0.0
+    - Test partial overlap scenarios with known expected scores
+    - Test empty exception sets return Jaccard 1.0
+    - Test one-empty-one-non-empty sets return Jaccard 0.0
+    - _Requirements: 3.1, 3.2, 3.5, 3.6, 3.7_
+
+- [ ] 7. Implement IncidentAnalysisService
+  - [ ] 7.1 Create IncidentAnalysisService class
+    - Implement `IncidentAnalysis analyzeAndPersist(String rawLogContent, String sourceFilename, String modelOverride)` — full pipeline: parse exceptions → transform events → build summary → find similar → build prompt → call LLM → persist
+    - Implement `IncidentAnalysis buildIncidentSummary(List<CanonicalEvent> events, Map<String,Integer> exceptionCounts, String sourceFilename)` — derive errorDistribution, exceptionTypes, timeRange, errorSummary from events and counts
+    - Implement `String buildEnhancedPrompt(String currentSummary, List<ScoredMatch> similarIncidents)` — include historical context when similar incidents exist; omit incidents with null rootCause; cap history section at 8000 chars
+    - Generate UUID v4 for each new incident; record UTC timestamp as analysisDate
+    - Validate data model before persistence (call DataModelValidator)
+    - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 5.1, 5.2, 5.3, 5.5, 8.10_
+  - [ ] 7.2 Implement error handling in IncidentAnalysisService
+    - Handle LLM timeout/failure: persist incident with null llmAnalysis, do not retry
+    - Handle no parseable exceptions: return error indication, do not persist
+    - Handle PostgreSQL unavailable: retry with exponential backoff (1s, 2s, 4s), then mark persisted=false and return result with warning
+    - Handle LLM unparseable response: store raw response (truncated to 32000 chars), continue with null structured fields
+    - _Requirements: 2.7, 2.8, 5.4, 9.1, 9.2, 9.3_
+  - [ ]* 7.3 Write property tests for IncidentAnalysisService prompt building (jqwik)
+    - **Property 14: Historical Context Conditionality** — When similar incidents exist, prompt contains historical context; when none exist, prompt equals base prompt
+    - **Property 15: Prompt Historical Context Size Cap** — Historical context section never exceeds 8000 characters
+    - **Property 13: Idempotent but Distinct Persistence** — Each analysis invocation generates a distinct UUID and timestamp
+    - **Validates: Requirements 2.6, 5.1, 5.2, 5.3**
+  - [ ]* 7.4 Write unit tests for IncidentAnalysisService
+    - Test full pipeline with mocked repository and OllamaService
+    - Test buildEnhancedPrompt with 0, 1, and 5 similar incidents
+    - Test prompt omits incidents with null rootCause
+    - Test error handling: LLM timeout results in null llmAnalysis persisted
+    - Test error handling: no exceptions returns error without persisting
+    - _Requirements: 2.1, 2.7, 2.8, 5.1, 5.2, 5.5_
+
+- [ ] 8. Checkpoint - Ensure service layer compiles and all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 9. Implement REST API (IncidentController)
+  - [ ] 9.1 Create IncidentController with REST endpoints
+    - Implement `GET /incidents` — paginated list of incident summaries, page default 0, size default 20, size max 100
+    - Implement `GET /incidents/{id}` — full incident detail by UUID, return 404 if not found
+    - Implement `GET /incidents/similar` — similarity search by incidentId parameter, maxResults default 5 max 50, return 404 if incidentId not found, return 400 if incidentId missing
+    - Validate parameters: return 400 for non-numeric/negative page/size values
+    - Create response DTOs: `IncidentAnalysisSummary` and `IncidentAnalysisDetail`
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8_
+  - [ ]* 9.2 Write property tests for IncidentController pagination (jqwik)
+    - **Property 17: Pagination Bound** — For any page size S, returned list contains at most S elements
+    - **Validates: Requirements 6.1, 6.6**
+  - [ ]* 9.3 Write unit tests for IncidentController
+    - Test GET /incidents returns paginated results
+    - Test GET /incidents/{id} returns 404 for non-existent UUID
+    - Test GET /incidents/similar returns 400 without incidentId parameter
+    - Test GET /incidents/similar returns 404 for non-existent incidentId
+    - Test invalid page/size parameters return 400
+    - Test size parameter capped at 100
+    - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.7, 6.8_
+
+- [ ] 10. Integrate knowledge pipeline into existing workflow
+  - [ ] 10.1 Update LogController to wire in the knowledge pipeline
+    - After existing parseLog + AI analysis, call `IncidentAnalysisService.analyzeAndPersist()`
+    - Wrap knowledge store operations in try-catch: if PostgreSQL unavailable, log ERROR and continue with existing results
+    - Validate file: must have .log extension and be non-empty; reject with error message otherwise
+    - Add file size check: reject files > 50MB with descriptive error
+    - Ensure existing results page still renders correctly with or without knowledge store
+    - _Requirements: 7.1, 7.2, 7.3, 7.4, 9.4, 9.5_
+  - [ ] 10.2 Implement global error handling
+    - Create `@ControllerAdvice` exception handler for unhandled exceptions
+    - Generate correlation ID (UUID) for each error, log with correlation ID, return error message with correlation ID
+    - Handle validation exceptions (data model validation failures) with descriptive messages
+    - _Requirements: 8.8, 9.6_
+  - [ ]* 10.3 Write integration tests for the full pipeline
+    - Test upload log → analysis created → incident persisted → similar query works
+    - Test upload with PostgreSQL unavailable → analysis completes, persistence warning returned
+    - Test cold start (empty knowledge store) → analysis uses base prompt only
+    - Test file validation: reject non-.log files, reject empty files, reject >50MB files
+    - _Requirements: 7.1, 7.2, 7.3, 9.1, 9.2, 9.4, 9.5_
+
+- [ ] 11. Final checkpoint - Ensure all tests pass and application starts
+  - Ensure all tests pass, ask the user if questions arise.
+
+## Notes
+
+- Tasks marked with `*` are optional and can be skipped for faster MVP
+- Each task references specific requirements for traceability
+- Checkpoints ensure incremental validation at layer boundaries
+- Property tests use jqwik (already added as dependency in task 1.1)
+- Integration tests use Testcontainers for PostgreSQL (added in task 1.1)
+- The existing Thymeleaf UI and LogController remain functional throughout — knowledge features are additive

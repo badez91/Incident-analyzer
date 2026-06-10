@@ -1,0 +1,8 @@
+com\loganalyzer\model\AiAnalysis.class
+com\loganalyzer\model\AiAnalysis$RecommendedActions.class
+com\loganalyzer\LogAnalyzerApplication.class
+com\loganalyzer\model\AnalysisResult.class
+com\loganalyzer\service\OllamaService.class
+com\loganalyzer\controller\LogController.class
+com\loganalyzer\service\LogParserService$ExceptionInfo.class
+com\loganalyzer\service\LogParserService.class
