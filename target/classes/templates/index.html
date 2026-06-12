@@ -14,13 +14,14 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
         .container {
             background: #fff;
             border-radius: 12px;
             box-shadow: 0 4px 24px rgba(0,0,0,0.08);
             padding: 48px;
-            max-width: 520px;
+            max-width: 600px;
             width: 100%;
         }
         h1 {
@@ -30,12 +31,48 @@
         }
         .subtitle {
             color: #666;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 24px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            font-weight: 500;
+            color: #64748b;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+        }
+        .tab:hover { color: #0969da; }
+        .tab.active {
+            color: #0969da;
+            border-bottom-color: #0969da;
+        }
+        .tab.disabled {
+            color: #cbd5e1;
+            cursor: not-allowed;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* Forms */
         form {
             display: flex;
             flex-direction: column;
             gap: 16px;
+        }
+        label {
+            font-weight: 500;
+            color: #475569;
+            font-size: 0.9rem;
         }
         input[type="file"] {
             border: 2px dashed #d0d7de;
@@ -48,6 +85,29 @@
         input[type="file"]:hover {
             border-color: #0969da;
         }
+        input[type="text"], select, input[type="number"] {
+            padding: 10px 14px;
+            border: 1px solid #d0d7de;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background: #fff;
+            width: 100%;
+        }
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #0969da;
+            box-shadow: 0 0 0 3px rgba(9,105,218,0.1);
+        }
+        .query-help {
+            font-size: 0.8rem;
+            color: #94a3b8;
+            margin-top: -8px;
+        }
+        .form-row {
+            display: flex;
+            gap: 12px;
+        }
+        .form-row > div { flex: 1; }
         button {
             background: #0969da;
             color: #fff;
@@ -64,6 +124,12 @@
             background: #93c5fd;
             cursor: not-allowed;
         }
+        .btn-loki {
+            background: #f97316;
+        }
+        .btn-loki:hover { background: #ea580c; }
+        .btn-loki:disabled { background: #fdba74; }
+
         .error {
             background: #fef2f2;
             border: 1px solid #fecaca;
@@ -71,6 +137,15 @@
             padding: 12px 16px;
             border-radius: 8px;
             margin-bottom: 16px;
+        }
+        .info-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            color: #1e40af;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 0.88rem;
         }
         .loading {
             display: none;
@@ -103,33 +178,120 @@
 <body>
     <div class="container">
         <h1>AI Log Analyzer</h1>
-        <p class="subtitle">Upload a .log file to extract exceptions and get AI-powered analysis.</p>
+        <p class="subtitle">Analyze logs from file upload or pull directly from Grafana Loki.</p>
 
         <div th:if="${error}" class="error" th:text="${error}"></div>
 
-        <form id="uploadForm" action="/analyze" method="post" enctype="multipart/form-data">
-            <input type="file" name="file" accept=".log" required>
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('upload')">📁 Upload File</div>
+            <div class="tab" th:classappend="${lokiEnabled} ? '' : 'disabled'" onclick="switchTab('loki')" th:attr="data-enabled=${lokiEnabled}">🔍 Pull from Loki</div>
+        </div>
 
-            <label for="model" style="font-weight:500; color:#475569; font-size:0.9rem;">Ollama Model</label>
-            <select id="model" name="model" style="padding:10px 14px; border:1px solid #d0d7de; border-radius:8px; font-size:0.95rem; background:#fff;">
-                <option th:each="m : ${models}" th:value="${m}" th:text="${m}" th:selected="${m == defaultModel}"></option>
-            </select>
+        <!-- Tab 1: File Upload -->
+        <div id="tab-upload" class="tab-content active">
+            <form id="uploadForm" action="/analyze" method="post" enctype="multipart/form-data">
+                <input type="file" name="file" accept=".log" required>
 
-            <button id="submitBtn" type="submit">Analyze Log</button>
-        </form>
+                <label for="model-upload">Ollama Model</label>
+                <select id="model-upload" name="model">
+                    <option th:each="m : ${models}" th:value="${m}" th:text="${m}" th:selected="${m == defaultModel}"></option>
+                </select>
+
+                <button id="submitBtn" type="submit">Analyze Log</button>
+            </form>
+        </div>
+
+        <!-- Tab 2: Loki Query -->
+        <div id="tab-loki" class="tab-content">
+            <div th:if="${!lokiEnabled}" class="info-box">
+                Loki integration is not configured. Set <code>grafana.service-account-token</code> in application.properties.
+            </div>
+
+            <form id="lokiForm" action="/analyze-loki" method="post" th:if="${lokiEnabled}">
+                <label for="lokiQuery">LogQL Query</label>
+                <input type="text" id="lokiQuery" name="lokiQuery"
+                       placeholder='{app="my-service"} |= "ERROR"'
+                       required>
+                <p class="query-help">
+                    Examples: <code>{app="payment-service"}</code> &nbsp;|&nbsp;
+                    <code>{namespace="prod"} |= "Exception"</code> &nbsp;|&nbsp;
+                    <code>{job="myapp"} | logfmt | level="error"</code>
+                </p>
+
+                <div class="form-row">
+                    <div>
+                        <label for="timeRange">Time Range</label>
+                        <select id="timeRange" name="timeRange">
+                            <option value="15m">Last 15 minutes</option>
+                            <option value="30m">Last 30 minutes</option>
+                            <option value="1h" selected>Last 1 hour</option>
+                            <option value="3h">Last 3 hours</option>
+                            <option value="6h">Last 6 hours</option>
+                            <option value="12h">Last 12 hours</option>
+                            <option value="24h">Last 24 hours</option>
+                            <option value="7d">Last 7 days</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="limit">Max Lines</label>
+                        <input type="number" id="limit" name="limit" value="5000" min="100" max="50000">
+                    </div>
+                </div>
+
+                <label for="model-loki">Ollama Model</label>
+                <select id="model-loki" name="model">
+                    <option th:each="m : ${models}" th:value="${m}" th:text="${m}" th:selected="${m == defaultModel}"></option>
+                </select>
+
+                <button id="lokiSubmitBtn" type="submit" class="btn-loki">🔍 Query &amp; Analyze</button>
+            </form>
+        </div>
 
         <div id="loading" class="loading">
             <div class="spinner"></div>
-            <span>Analyzing log file... This may take 1-2 minutes while Ollama processes the data.</span>
+            <span id="loadingText">Analyzing... This may take 1-2 minutes.</span>
         </div>
     </div>
 
     <script>
+        function switchTab(tab) {
+            // Check if Loki tab is disabled
+            if (tab === 'loki') {
+                var lokiTab = document.querySelector('.tab[onclick*="loki"]');
+                if (lokiTab && lokiTab.dataset.enabled === 'false') return;
+            }
+
+            // Switch tab UI
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+            if (tab === 'upload') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('tab-upload').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('tab-loki').classList.add('active');
+            }
+        }
+
+        // Loading states
         document.getElementById('uploadForm').addEventListener('submit', function() {
             document.getElementById('submitBtn').disabled = true;
             document.getElementById('submitBtn').textContent = 'Analyzing...';
+            document.getElementById('loadingText').textContent = 'Analyzing log file... This may take 1-2 minutes.';
             document.getElementById('loading').classList.add('active');
         });
+
+        var lokiForm = document.getElementById('lokiForm');
+        if (lokiForm) {
+            lokiForm.addEventListener('submit', function() {
+                document.getElementById('lokiSubmitBtn').disabled = true;
+                document.getElementById('lokiSubmitBtn').textContent = 'Querying Loki...';
+                document.getElementById('loadingText').textContent = 'Querying Loki and analyzing... This may take 1-2 minutes.';
+                document.getElementById('loading').classList.add('active');
+            });
+        }
     </script>
 </body>
 </html>
