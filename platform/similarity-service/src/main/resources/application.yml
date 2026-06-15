@@ -1,0 +1,8 @@
+server:
+  port: 8085
+spring:
+  application:
+    name: similarity-service
+services:
+  knowledge-store:
+    url: ${KNOWLEDGE_STORE_URL:http://localhost:8084}

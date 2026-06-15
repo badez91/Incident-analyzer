@@ -1,0 +1,21 @@
+server:
+  port: 8083
+spring:
+  application:
+    name: incident-analysis-service
+services:
+  knowledge-store:
+    url: ${KNOWLEDGE_STORE_URL:http://localhost:8084}
+  similarity:
+    url: ${SIMILARITY_URL:http://localhost:8085}
+ollama:
+  url: ${OLLAMA_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:qwen3:1.7b}
+  timeout-seconds: ${OLLAMA_TIMEOUT:300}
+
+integration:
+  output-dir: ${OUTPUT_DIR:./output}
+  jira:
+    enabled: ${JIRA_ENABLED:false}
+  confluence:
+    enabled: ${CONFLUENCE_ENABLED:false}

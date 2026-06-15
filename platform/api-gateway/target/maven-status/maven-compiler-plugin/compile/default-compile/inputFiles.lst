@@ -1,0 +1,5 @@
+/Users/faizfarhan/POC/Incident-analyzer/platform/api-gateway/src/main/java/com/eip/gateway/ApiGatewayApplication.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/api-gateway/src/main/java/com/eip/gateway/controller/HealthController.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/api-gateway/src/main/java/com/eip/gateway/config/GatewayConfig.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/api-gateway/src/main/java/com/eip/gateway/controller/HealthAggregationController.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/api-gateway/src/main/java/com/eip/gateway/controller/GatewayController.java

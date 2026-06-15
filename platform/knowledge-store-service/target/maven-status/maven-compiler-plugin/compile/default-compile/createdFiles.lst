@@ -1,0 +1,8 @@
+com/eip/knowledgestore/entity/IncidentEntity.class
+com/eip/knowledgestore/entity/IncidentAnalysisEntity.class
+com/eip/knowledgestore/repository/IncidentAnalysisJpaRepository.class
+com/eip/knowledgestore/repository/IncidentJpaRepository.class
+com/eip/knowledgestore/entity/CanonicalEventEntity.class
+com/eip/knowledgestore/service/KnowledgeStoreService.class
+com/eip/knowledgestore/controller/KnowledgeStoreController.class
+com/eip/knowledgestore/KnowledgeStoreApplication.class

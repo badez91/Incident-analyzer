@@ -1,0 +1,5 @@
+com/eip/ingestion/client/TransformerClient.class
+com/eip/ingestion/controller/IngestionController.class
+com/eip/ingestion/controller/HealthController.class
+com/eip/ingestion/IncidentIngestionApplication.class
+com/eip/ingestion/service/IngestionService.class

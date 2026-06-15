@@ -159,8 +159,34 @@ The existing monolith at `/Users/faizfarhan/POC/Incident-analyzer/` continues to
     - Health endpoint
     - _Requirements: 7.3, 7.4, 7.7, 7.8_
 
-- [ ] 10. Implement API Gateway
-  - [ ] 10.1 Create gateway routing and cross-cutting concerns
+- [ ] 10. Implement local output generation (Jira/Confluence templates)
+  - [ ] 10.1 Create output writer service
+    - Implement `OutputWriterService` that writes generated documents to `output/` directory
+    - Create directory structure: `output/jira/incidents/`, `output/jira/comments/`, `output/jira/updates/`, `output/confluence/rca/`, `output/confluence/postmortem/`, `output/confluence/investigation/`
+    - Implement `index.json` manifest tracking all generated outputs with metadata (type, file, incidentId, posted status, timestamp)
+    - Configure via `integration.jira.output-dir` and `integration.confluence.output-dir` properties
+    - _Requirements: Design - Local Output Strategy_
+  - [ ] 10.2 Create Jira output templates
+    - Implement Jira ticket JSON template: project, issueType, summary, priority, description, labels, customFields
+    - Implement Jira RCA comment template (Markdown): severity, confidence, root cause, recommended actions, similar incidents, footer
+    - Implement Jira status update JSON template: transition, fields, comment
+    - Write outputs to `output/jira/` on each analysis completion
+    - _Requirements: Design - Local Output Strategy_
+  - [ ] 10.3 Create Confluence output templates
+    - Implement RCA document template (Markdown): incident summary table, timeline, root cause, evidence table, business impact, resolution actions, similar incidents table, linked resources
+    - Implement Postmortem template (Markdown): executive summary, impact metrics, detailed timeline, root cause analysis, what went well/wrong, action items table, sign-off
+    - Implement Investigation Summary template (Markdown): current understanding, exception breakdown, AI hypothesis, historical context, investigation log, next steps
+    - Write outputs to `output/confluence/` on each analysis completion
+    - _Requirements: Design - Local Output Strategy_
+  - [ ] 10.4 Wire output generation into analysis pipeline
+    - After ANALYSIS_COMPLETE, trigger output generation
+    - Generate Confluence RCA document for every completed analysis
+    - Generate Jira comment for incidents that reference a Jira ticket (INC prefix pattern)
+    - Add `integration.jira.enabled` and `integration.confluence.enabled` toggles (default: false = local only)
+    - _Requirements: Design - Local Output Strategy_
+
+- [ ] 11. Implement API Gateway
+  - [ ] 11.1 Create gateway routing and cross-cutting concerns
     - Configure Spring Cloud Gateway or simple reverse proxy routing:
       - /api/incidents → incident-ingestion-service:8081
       - /api/knowledge → knowledge-store-service:8084
@@ -175,14 +201,14 @@ The existing monolith at `/Users/faizfarhan/POC/Incident-analyzer/` continues to
     - Listen on port 8080
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
 
-- [ ] 11. Implement global error handling and resilience
-  - [ ] 11.1 Add error handling to each service
+- [ ] 12. Implement global error handling and resilience
+  - [ ] 12.1 Add error handling to each service
     - Create `@ControllerAdvice` in each service: correlation ID generation, validation error formatting, 500 handler with correlation ID
     - Add circuit breaker pattern (Resilience4j) for inter-service HTTP calls
     - Implement retry with exponential backoff for Knowledge Store persistence (1s, 2s, 4s, 3 attempts)
     - Return warnings (not errors) to callers when non-critical operations fail (e.g., persistence after analysis)
     - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7_
-  - [ ] 11.2 Add data model validation at service boundaries
+  - [ ] 12.2 Add data model validation at service boundaries
     - Enforce Jakarta Bean Validation on all @RequestBody parameters
     - Implement status transition validation (forward-only: INGESTED→TRANSFORMING→ANALYZING→COMPLETE/FAILED)
     - Validate errorDistribution sum (±0.1), exceptionTypes == exceptionCounts.keySet()
@@ -268,20 +294,24 @@ The existing monolith at `/Users/faizfarhan/POC/Incident-analyzer/` continues to
       "tasks": [7, 8, 9]
     },
     {
-      "name": "Wave 5: Gateway & Resilience",
+      "name": "Wave 5: Output Generation & Gateway",
       "tasks": [10, 11]
     },
     {
-      "name": "Wave 6: Verification",
+      "name": "Wave 6: Resilience",
       "tasks": [12]
     },
     {
-      "name": "Wave 7: Docker Deployment",
+      "name": "Wave 7: Verification",
       "tasks": [13]
     },
     {
-      "name": "Wave 8: Final Testing",
-      "tasks": [14, 15]
+      "name": "Wave 8: Docker Deployment",
+      "tasks": [14]
+    },
+    {
+      "name": "Wave 9: Final Testing",
+      "tasks": [15, 16]
     }
   ]
 }

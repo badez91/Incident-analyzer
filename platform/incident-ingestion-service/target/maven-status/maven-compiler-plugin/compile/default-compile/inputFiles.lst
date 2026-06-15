@@ -1,0 +1,5 @@
+/Users/faizfarhan/POC/Incident-analyzer/platform/incident-ingestion-service/src/main/java/com/eip/ingestion/client/TransformerClient.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/incident-ingestion-service/src/main/java/com/eip/ingestion/IncidentIngestionApplication.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/incident-ingestion-service/src/main/java/com/eip/ingestion/controller/IngestionController.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/incident-ingestion-service/src/main/java/com/eip/ingestion/controller/HealthController.java
+/Users/faizfarhan/POC/Incident-analyzer/platform/incident-ingestion-service/src/main/java/com/eip/ingestion/service/IngestionService.java
