@@ -1,8 +1,0 @@
-server:
-  port: 8086
-spring:
-  application:
-    name: failure-simulator-service
-services:
-  ingestion:
-    url: ${INGESTION_URL:http://localhost:8081}

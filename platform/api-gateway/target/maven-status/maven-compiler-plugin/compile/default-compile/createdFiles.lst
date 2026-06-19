@@ -1,5 +1,0 @@
-com/eip/gateway/ApiGatewayApplication.class
-com/eip/gateway/config/GatewayConfig.class
-com/eip/gateway/controller/GatewayController.class
-com/eip/gateway/controller/HealthController.class
-com/eip/gateway/controller/HealthAggregationController.class

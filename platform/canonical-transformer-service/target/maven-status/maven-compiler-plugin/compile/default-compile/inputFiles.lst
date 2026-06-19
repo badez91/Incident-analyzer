@@ -1,6 +1,0 @@
-/Users/faizfarhan/POC/Incident-analyzer/platform/canonical-transformer-service/src/main/java/com/eip/transformer/CanonicalTransformerApplication.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/canonical-transformer-service/src/main/java/com/eip/transformer/service/EventBusPublisher.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/canonical-transformer-service/src/main/java/com/eip/transformer/controller/HealthController.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/canonical-transformer-service/src/main/java/com/eip/transformer/controller/TransformerController.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/canonical-transformer-service/src/main/java/com/eip/transformer/service/TransformationService.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/canonical-transformer-service/src/main/java/com/eip/transformer/config/RedisConfig.java

@@ -1,8 +1,0 @@
-server:
-  port: 8081
-spring:
-  application:
-    name: incident-ingestion-service
-services:
-  transformer:
-    url: ${TRANSFORMER_URL:http://localhost:8082}

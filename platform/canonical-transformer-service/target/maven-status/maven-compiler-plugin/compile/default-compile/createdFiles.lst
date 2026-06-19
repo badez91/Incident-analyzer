@@ -1,6 +1,0 @@
-com/eip/transformer/config/RedisConfig.class
-com/eip/transformer/controller/TransformerController.class
-com/eip/transformer/service/TransformationService.class
-com/eip/transformer/CanonicalTransformerApplication.class
-com/eip/transformer/service/EventBusPublisher.class
-com/eip/transformer/controller/HealthController.class

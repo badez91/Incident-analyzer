@@ -1,0 +1,4 @@
+com/aira/AiraApplicationTest.class
+com/aira/incident/service/IncidentServiceTest.class
+com/aira/document/service/ContentExtractorTest.class
+com/aira/intelligence/service/ResponseParserTest.class

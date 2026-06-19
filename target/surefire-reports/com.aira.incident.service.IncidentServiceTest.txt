@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.aira.incident.service.IncidentServiceTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.079 s -- in com.aira.incident.service.IncidentServiceTest

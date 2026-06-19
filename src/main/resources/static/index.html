@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AIRA — Automated Investigation and Response Algorithm</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f1419;
+            color: #e7e9ea;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(135deg, #1a1f2e 0%, #0f1419 100%);
+            border-bottom: 1px solid #2f3336;
+            padding: 20px 40px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            background: linear-gradient(90deg, #7c5cfc, #00d4aa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header .subtitle {
+            color: #71767b;
+            font-size: 13px;
+        }
+        .header .status {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #00ba7c;
+        }
+        .header .status .dot {
+            width: 8px; height: 8px;
+            background: #00ba7c;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 40px;
+        }
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 24px;
+            border-bottom: 1px solid #2f3336;
+            padding-bottom: 0;
+        }
+        .tab {
+            padding: 12px 20px;
+            cursor: pointer;
+            color: #71767b;
+            font-size: 14px;
+            font-weight: 500;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+        .tab:hover { color: #e7e9ea; }
+        .tab.active {
+            color: #7c5cfc;
+            border-bottom-color: #7c5cfc;
+        }
+        .panel { display: none; }
+        .panel.active { display: block; }
+
+        /* Analyze Panel */
+        .analyze-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+        }
+        .card {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .card h3 {
+            font-size: 16px;
+            margin-bottom: 16px;
+            color: #e7e9ea;
+        }
+        .input-group {
+            margin-bottom: 14px;
+        }
+        .input-group label {
+            display: block;
+            font-size: 12px;
+            color: #71767b;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .input-group input, .input-group textarea {
+            width: 100%;
+            padding: 10px 14px;
+            background: #1e2028;
+            border: 1px solid #2f3336;
+            border-radius: 8px;
+            color: #e7e9ea;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-group input:focus, .input-group textarea:focus {
+            border-color: #7c5cfc;
+        }
+        .input-group textarea { resize: vertical; min-height: 80px; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #7c5cfc, #5a3fd4);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(124,92,252,0.3); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .btn-secondary {
+            background: #2f3336;
+            color: #e7e9ea;
+        }
+        .btn-secondary:hover { background: #3a3d41; }
+
+        /* Results */
+        .result-card {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 12px;
+            padding: 24px;
+            margin-top: 24px;
+        }
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .severity-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .severity-CRITICAL { background: #67000d; color: #ff6b6b; }
+        .severity-HIGH { background: #7c2d12; color: #fb923c; }
+        .severity-MEDIUM { background: #713f12; color: #fbbf24; }
+        .severity-LOW { background: #14532d; color: #4ade80; }
+        .confidence-bar {
+            height: 6px;
+            background: #2f3336;
+            border-radius: 3px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.8s ease;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 16px 0;
+        }
+        .metric {
+            text-align: center;
+            padding: 12px;
+            background: #1e2028;
+            border-radius: 8px;
+        }
+        .metric .value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #7c5cfc;
+        }
+        .metric .label {
+            font-size: 11px;
+            color: #71767b;
+            margin-top: 4px;
+        }
+        .section { margin-top: 16px; }
+        .section h4 {
+            font-size: 13px;
+            color: #71767b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .section p, .section li {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #e7e9ea;
+        }
+        .section ul { padding-left: 20px; }
+        .section li { margin-bottom: 4px; }
+        .context-item {
+            background: #1e2028;
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .context-item .ref {
+            color: #7c5cfc;
+            font-weight: 600;
+        }
+        .context-item .snippet {
+            color: #71767b;
+            margin-top: 4px;
+        }
+
+        /* Knowledge Panel */
+        .search-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .search-bar input { flex: 1; }
+        .doc-list { display: grid; gap: 12px; }
+        .doc-item {
+            background: #16181c;
+            border: 1px solid #2f3336;
+            border-radius: 10px;
+            padding: 16px;
+        }
+        .doc-item .doc-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .doc-item .source-badge {
+            padding: 2px 8px;
+            background: #2f3336;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #00d4aa;
+            font-weight: 600;
+        }
+        .doc-item .doc-title {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .doc-item .doc-meta {
+            font-size: 12px;
+            color: #71767b;
+        }
+
+        /* Loading */
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 20px;
+            color: #71767b;
+        }
+        .spinner {
+            width: 20px; height: 20px;
+            border: 2px solid #2f3336;
+            border-top-color: #7c5cfc;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .analyze-grid { grid-template-columns: 1fr; }
+            .metrics { grid-template-columns: 1fr; }
+            .container { padding: 20px; }
+        }
+        .hidden { display: none; }
+        .recommendations-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+        .rec-col h5 {
+            font-size: 12px;
+            color: #71767b;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        .rec-col ul {
+            padding-left: 16px;
+            font-size: 13px;
+        }
+        @media (max-width: 768px) {
+            .recommendations-grid { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>AIRA</h1>
+        <span class="subtitle">Automated Investigation and Response Algorithm</span>
+        <div class="status" id="health-status">
+            <span class="dot"></span>
+            <span>System Online</span>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <div class="tab active" data-tab="analyze">🔍 Analyze</div>
+            <div class="tab" data-tab="knowledge">🧠 Knowledge</div>
+            <div class="tab" data-tab="incidents">📋 Incidents</div>
+        </div>
+
+        <!-- ANALYZE PANEL -->
+        <div class="panel active" id="panel-analyze">
+            <div class="analyze-grid">
+                <div class="card">
+                    <h3>🎫 Analyze from Jira</h3>
+                    <div class="input-group">
+                        <label>Jira Ticket Key</label>
+                        <input type="text" id="jira-key" placeholder="e.g. CM-5553" />
+                    </div>
+                    <button class="btn btn-primary" id="btn-analyze-jira">Analyze Ticket</button>
+                </div>
+                <div class="card">
+                    <h3>✍️ Manual Analysis</h3>
+                    <div class="input-group">
+                        <label>Service Name</label>
+                        <input type="text" id="manual-service" placeholder="e.g. payment-service" />
+                    </div>
+                    <div class="input-group">
+                        <label>Summary</label>
+                        <textarea id="manual-summary" placeholder="Describe the incident..."></textarea>
+                    </div>
+                    <div class="input-group">
+                        <label>Exception Type (optional)</label>
+                        <input type="text" id="manual-exception" placeholder="e.g. NullPointerException" />
+                    </div>
+                    <button class="btn btn-primary" id="btn-analyze-manual">Run Analysis</button>
+                </div>
+            </div>
+
+            <div id="analyze-loading" class="loading hidden">
+                <div class="spinner"></div>
+                <span>AIRA is investigating... Retrieving context → Building prompt → Running AI analysis</span>
+            </div>
+
+            <div id="analyze-result" class="hidden"></div>
+        </div>
+
+        <!-- KNOWLEDGE PANEL -->
+        <div class="panel" id="panel-knowledge">
+            <div class="search-bar">
+                <input type="text" id="knowledge-service" placeholder="Service name (e.g. cm)" />
+                <input type="text" id="knowledge-exception" placeholder="Exception type (optional)" />
+                <button class="btn btn-primary" id="btn-search-knowledge">Search</button>
+            </div>
+            <div id="knowledge-results" class="doc-list"></div>
+        </div>
+
+        <!-- INCIDENTS PANEL -->
+        <div class="panel" id="panel-incidents">
+            <div class="search-bar">
+                <input type="text" id="incident-service" placeholder="Filter by service" />
+                <button class="btn btn-primary" id="btn-search-incidents">Search</button>
+                <button class="btn btn-secondary" id="btn-load-incidents">Load All</button>
+            </div>
+            <div id="incidents-results" class="doc-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+            });
+        });
+
+        // Health check
+        async function checkHealth() {
+            try {
+                const res = await fetch('/actuator/health');
+                const data = await res.json();
+                const el = document.getElementById('health-status');
+                if (data.status === 'UP') {
+                    el.innerHTML = '<span class="dot"></span><span>System Online</span>';
+                } else {
+                    el.innerHTML = '<span class="dot" style="background:#ef4444"></span><span>System Down</span>';
+                }
+            } catch (e) {
+                document.getElementById('health-status').innerHTML =
+                    '<span class="dot" style="background:#ef4444"></span><span>Unreachable</span>';
+            }
+        }
+        checkHealth();
+
+        // Analyze from Jira
+        document.getElementById('btn-analyze-jira').addEventListener('click', async () => {
+            const key = document.getElementById('jira-key').value.trim();
+            if (!key) return alert('Enter a Jira ticket key');
+
+            showLoading();
+            try {
+                const res = await fetch(`/api/analyze/jira/${key}`, { method: 'POST' });
+                const data = await res.json();
+                if (res.ok) {
+                    renderResult(data);
+                } else {
+                    renderError(data);
+                }
+            } catch (e) {
+                renderError({ message: e.message });
+            }
+        });
+
+        // Manual analysis
+        document.getElementById('btn-analyze-manual').addEventListener('click', async () => {
+            const serviceName = document.getElementById('manual-service').value.trim();
+            const summary = document.getElementById('manual-summary').value.trim();
+            const exceptionType = document.getElementById('manual-exception').value.trim();
+
+            if (!serviceName || !summary) return alert('Service name and summary are required');
+
+            showLoading();
+            try {
+                const body = { serviceName, summary };
+                if (exceptionType) body.exceptionType = exceptionType;
+
+                const res = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await res.json();
+                if (res.ok) {
+                    renderResult(data);
+                } else {
+                    renderError(data);
+                }
+            } catch (e) {
+                renderError({ message: e.message });
+            }
+        });
+
+        function showLoading() {
+            document.getElementById('analyze-loading').classList.remove('hidden');
+            document.getElementById('analyze-result').classList.add('hidden');
+        }
+
+        function renderResult(data) {
+            document.getElementById('analyze-loading').classList.add('hidden');
+            const el = document.getElementById('analyze-result');
+            el.classList.remove('hidden');
+
+            const confColor = data.confidencePercent >= 80 ? '#00d4aa' :
+                              data.confidencePercent >= 50 ? '#fbbf24' : '#ef4444';
+
+            const recs = data.recommendations || {};
+            const recsHtml = `
+                <div class="recommendations-grid">
+                    <div class="rec-col">
+                        <h5>🔴 Immediate</h5>
+                        <ul>${(recs.immediate || []).map(r => `<li>${r}</li>`).join('') || '<li>None</li>'}</ul>
+                    </div>
+                    <div class="rec-col">
+                        <h5>🟡 Short Term</h5>
+                        <ul>${(recs.shortTerm || []).map(r => `<li>${r}</li>`).join('') || '<li>None</li>'}</ul>
+                    </div>
+                    <div class="rec-col">
+                        <h5>🟢 Long Term</h5>
+                        <ul>${(recs.longTerm || []).map(r => `<li>${r}</li>`).join('') || '<li>None</li>'}</ul>
+                    </div>
+                </div>
+            `;
+
+            const contextHtml = (data.contextUsed || []).map(c => `
+                <div class="context-item">
+                    <span class="ref">[${c.sourceType}] ${c.referenceId || 'N/A'}</span>
+                    <div class="snippet">${c.snippet || ''}</div>
+                </div>
+            `).join('');
+
+            el.innerHTML = `
+                <div class="result-card">
+                    <div class="result-header">
+                        <h3>Root Cause Analysis</h3>
+                        <span class="severity-badge severity-${data.severity}">${data.severity}</span>
+                    </div>
+
+                    <div class="metrics">
+                        <div class="metric">
+                            <div class="value">${data.confidencePercent}%</div>
+                            <div class="label">Confidence</div>
+                        </div>
+                        <div class="metric">
+                            <div class="value">${data.tokensUsed}</div>
+                            <div class="label">Tokens Used</div>
+                        </div>
+                        <div class="metric">
+                            <div class="value">${(data.inferenceTimeMs / 1000).toFixed(1)}s</div>
+                            <div class="label">Inference Time</div>
+                        </div>
+                    </div>
+
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width:${data.confidencePercent}%; background:${confColor}"></div>
+                    </div>
+
+                    <div class="section">
+                        <h4>Root Cause</h4>
+                        <p>${data.rootCause}</p>
+                    </div>
+
+                    <div class="section">
+                        <h4>Summary</h4>
+                        <p>${data.summary}</p>
+                    </div>
+
+                    <div class="section">
+                        <h4>Business Impact</h4>
+                        <ul>${(data.businessImpact || []).map(b => `<li>${b}</li>`).join('') || '<li>None identified</li>'}</ul>
+                    </div>
+
+                    <div class="section">
+                        <h4>Recommendations</h4>
+                        ${recsHtml}
+                    </div>
+
+                    <div class="section">
+                        <h4>RAG Context Used (${(data.contextUsed || []).length} documents)</h4>
+                        ${contextHtml || '<p style="color:#71767b">No context retrieved</p>'}
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderError(data) {
+            document.getElementById('analyze-loading').classList.add('hidden');
+            const el = document.getElementById('analyze-result');
+            el.classList.remove('hidden');
+            el.innerHTML = `
+                <div class="result-card" style="border-color:#ef4444">
+                    <h3 style="color:#ef4444">❌ Error</h3>
+                    <p>${data.message || 'Unknown error occurred'}</p>
+                    ${data.details ? '<ul>' + data.details.map(d => `<li>${d}</li>`).join('') + '</ul>' : ''}
+                </div>
+            `;
+        }
+
+        // Knowledge search
+        document.getElementById('btn-search-knowledge').addEventListener('click', async () => {
+            const service = document.getElementById('knowledge-service').value.trim();
+            const exception = document.getElementById('knowledge-exception').value.trim();
+            const params = new URLSearchParams();
+            if (service) params.set('service', service);
+            if (exception) params.set('exception', exception);
+            params.set('limit', '10');
+
+            try {
+                const res = await fetch(`/api/knowledge/search?${params}`);
+                const data = await res.json();
+                renderKnowledgeResults(data);
+            } catch (e) {
+                document.getElementById('knowledge-results').innerHTML =
+                    `<p style="color:#ef4444">Error: ${e.message}</p>`;
+            }
+        });
+
+        function renderKnowledgeResults(docs) {
+            const el = document.getElementById('knowledge-results');
+            if (!docs.length) {
+                el.innerHTML = '<p style="color:#71767b; padding:20px;">No documents found.</p>';
+                return;
+            }
+            el.innerHTML = docs.map(d => `
+                <div class="doc-item">
+                    <div class="doc-header">
+                        <span class="source-badge">${d.sourceType}</span>
+                        <span class="doc-title">${d.referenceId || 'Unknown'}</span>
+                    </div>
+                    <p style="font-size:13px; margin-bottom:6px;">${d.summary || 'No summary'}</p>
+                    <div class="doc-meta">
+                        Service: ${d.serviceName || '—'} | Exception: ${d.exceptionType || '—'} | Created: ${new Date(d.createdAt).toLocaleString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Incidents
+        document.getElementById('btn-load-incidents').addEventListener('click', () => loadIncidents());
+        document.getElementById('btn-search-incidents').addEventListener('click', () => {
+            const service = document.getElementById('incident-service').value.trim();
+            loadIncidents(service);
+        });
+
+        async function loadIncidents(service) {
+            const params = new URLSearchParams();
+            if (service) params.set('service', service);
+
+            try {
+                const res = await fetch(`/api/incidents?${params}`);
+                const data = await res.json();
+                renderIncidents(data);
+            } catch (e) {
+                document.getElementById('incidents-results').innerHTML =
+                    `<p style="color:#ef4444">Error: ${e.message}</p>`;
+            }
+        }
+
+        function renderIncidents(incidents) {
+            const el = document.getElementById('incidents-results');
+            if (!incidents.length) {
+                el.innerHTML = '<p style="color:#71767b; padding:20px;">No incidents found.</p>';
+                return;
+            }
+            el.innerHTML = incidents.map(i => `
+                <div class="doc-item">
+                    <div class="doc-header">
+                        <span class="severity-badge severity-${i.severity}">${i.severity}</span>
+                        <span class="doc-title">${i.serviceName}</span>
+                        <span style="margin-left:auto; font-size:11px; color:#71767b;">${i.status}</span>
+                    </div>
+                    <p style="font-size:13px; margin-bottom:6px;">${i.summary || 'No summary'}</p>
+                    <div class="doc-meta">
+                        Source: ${i.source} | Jira: ${i.jiraKey || '—'} | Created: ${new Date(i.createdAt).toLocaleString()}
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

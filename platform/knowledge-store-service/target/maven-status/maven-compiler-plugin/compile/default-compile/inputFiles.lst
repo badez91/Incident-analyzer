@@ -1,8 +1,0 @@
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/entity/IncidentEntity.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/service/KnowledgeStoreService.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/repository/IncidentAnalysisJpaRepository.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/controller/KnowledgeStoreController.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/entity/IncidentAnalysisEntity.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/repository/IncidentJpaRepository.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/KnowledgeStoreApplication.java
-/Users/faizfarhan/POC/Incident-analyzer/platform/knowledge-store-service/src/main/java/com/eip/knowledgestore/entity/CanonicalEventEntity.java

@@ -1,0 +1,44 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: engineering-intelligence-platform
+  datasource:
+    url: jdbc:postgresql://localhost:5432/engineering_intelligence
+    username: faizfarhan
+    password:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+ollama:
+  url: ${OLLAMA_URL:http://localhost:11434}
+  model: ${OLLAMA_MODEL:qwen3:1.7b}
+  embedding-model: ${OLLAMA_EMBED_MODEL:nomic-embed-text}
+  vision-model: ${OLLAMA_VISION_MODEL:llava:7b}
+  timeout-seconds: ${OLLAMA_TIMEOUT:120}
+
+jira:
+  enabled: ${JIRA_ENABLED:true}
+  base-url: ${JIRA_BASE_URL:https://ctosrepo.atlassian.net}
+  username: ${JIRA_USERNAME:faiz@ctos.com.my}
+  api-token: ${JIRA_API_TOKEN:}
+  jql-filter: ${JIRA_JQL:issuetype = Bug AND status = "DEVELOPMENT ANALYSIS" AND updated >= -1h}
+
+integration:
+  output-dir: ${OUTPUT_DIR:./output}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
