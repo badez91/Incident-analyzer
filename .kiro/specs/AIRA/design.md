@@ -2,9 +2,12 @@
 
 ## Overview
 
-AIRA is a modular monolith Spring Boot application designed as an autonomous engineering investigation system. It performs automated incident investigation via RAG (Retrieval-Augmented Generation), accumulating engineering knowledge over time. The platform evolves toward bug prediction, architecture recommendations, smart reporting, and AI agent-based workflows.
+AIRA is a modular monolith Spring Boot application designed as an autonomous engineering investigation system. It gathers context from multiple sources (knowledge base, Confluence, server logs, source code), then produces investigation reports with hypotheses and identifies what information is missing — rather than declaring definitive root causes without sufficient evidence.
 
-**Core principle:** The LLM NEVER receives raw Jira or Confluence data. It only receives compact, pre-processed context retrieved from the Knowledge Store via RAG.
+**Core principles:**
+- The LLM NEVER receives raw Jira or Confluence data — only pre-processed RAG context
+- When evidence is insufficient, AIRA asks for more information rather than guessing
+- Output is an Investigation Report (hypothesis + missing info + next steps), not a definitive RCA
 
 **Architecture style:** Modular Monolith — single deployable, domain-separated packages, future microservice extraction ready.
 

@@ -361,7 +361,7 @@
 
             <div id="analyze-loading" class="loading hidden">
                 <div class="spinner"></div>
-                <span>AIRA is investigating... Retrieving context → Building prompt → Running AI analysis</span>
+                <span>AIRA is investigating... Gathering context → Searching documentation → Analyzing</span>
             </div>
 
             <div id="analyze-result" class="hidden"></div>
@@ -478,20 +478,34 @@
             const confColor = data.confidencePercent >= 80 ? '#00d4aa' :
                               data.confidencePercent >= 50 ? '#fbbf24' : '#ef4444';
 
+            const statusLabel = {
+                'CONFIRMED': '✅ Confirmed',
+                'HYPOTHESIS': '🔍 Hypothesis',
+                'NEEDS_INFO': '❓ Needs More Info',
+                'INVESTIGATING': '🔄 Investigating'
+            }[data.status] || data.status || '🔍 Investigation';
+
+            const statusColor = {
+                'CONFIRMED': '#00d4aa',
+                'HYPOTHESIS': '#fbbf24',
+                'NEEDS_INFO': '#ef4444',
+                'INVESTIGATING': '#71767b'
+            }[data.status] || '#71767b';
+
             const recs = data.recommendations || {};
             const recsHtml = `
                 <div class="recommendations-grid">
                     <div class="rec-col">
                         <h5>🔴 Immediate</h5>
-                        <ul>${(recs.immediate || []).map(r => `<li>${r}</li>`).join('') || '<li>None</li>'}</ul>
+                        <ul>${(recs.immediate || []).map(r => `<li>${r}</li>`).join('') || '<li>None yet</li>'}</ul>
                     </div>
                     <div class="rec-col">
                         <h5>🟡 Short Term</h5>
-                        <ul>${(recs.shortTerm || []).map(r => `<li>${r}</li>`).join('') || '<li>None</li>'}</ul>
+                        <ul>${(recs.shortTerm || []).map(r => `<li>${r}</li>`).join('') || '<li>None yet</li>'}</ul>
                     </div>
                     <div class="rec-col">
                         <h5>🟢 Long Term</h5>
-                        <ul>${(recs.longTerm || []).map(r => `<li>${r}</li>`).join('') || '<li>None</li>'}</ul>
+                        <ul>${(recs.longTerm || []).map(r => `<li>${r}</li>`).join('') || '<li>None yet</li>'}</ul>
                     </div>
                 </div>
             `;
@@ -503,11 +517,40 @@
                 </div>
             `).join('');
 
+            // Missing info section (key new feature)
+            const missingHtml = (data.missingInfo || []).length > 0 ? `
+                <div class="section">
+                    <h4>⚠️ Missing Information Needed</h4>
+                    <ul>${data.missingInfo.map(m => `<li style="color:#fbbf24">${m}</li>`).join('')}</ul>
+                </div>` : '';
+
+            // Questions to ask section
+            const questionsHtml = (data.questionsToAsk || []).length > 0 ? `
+                <div class="section">
+                    <h4>❓ Questions to Investigate</h4>
+                    <ul>${data.questionsToAsk.map(q => `<li>${q}</li>`).join('')}</ul>
+                </div>` : '';
+
+            // Next steps section
+            const nextStepsHtml = (data.nextSteps || []).length > 0 ? `
+                <div class="section">
+                    <h4>📋 Next Steps</h4>
+                    <ul>${data.nextSteps.map(s => `<li>${s}</li>`).join('')}</ul>
+                </div>` : '';
+
+            // Evidence section
+            const evidenceHtml = (data.evidenceFound || []).length > 0 ? `
+                <div class="section">
+                    <h4>🔎 Evidence Found</h4>
+                    <ul>${data.evidenceFound.map(e => `<li>${e}</li>`).join('')}</ul>
+                </div>` : '';
+
             el.innerHTML = `
                 <div class="result-card">
                     <div class="result-header">
-                        <h3>Root Cause Analysis</h3>
+                        <h3>Investigation Report</h3>
                         <span class="severity-badge severity-${data.severity}">${data.severity}</span>
+                        <span style="margin-left:8px; color:${statusColor}; font-weight:600; font-size:13px;">${statusLabel}</span>
                     </div>
 
                     <div class="metrics">
@@ -530,9 +573,14 @@
                     </div>
 
                     <div class="section">
-                        <h4>Root Cause</h4>
-                        <p>${data.rootCause}</p>
+                        <h4>🧠 Hypothesis</h4>
+                        <p>${data.hypothesis || data.rootCause || 'Insufficient data to form hypothesis'}</p>
                     </div>
+
+                    ${evidenceHtml}
+                    ${missingHtml}
+                    ${questionsHtml}
+                    ${nextStepsHtml}
 
                     <div class="section">
                         <h4>Summary</h4>
@@ -540,18 +588,13 @@
                     </div>
 
                     <div class="section">
-                        <h4>Business Impact</h4>
-                        <ul>${(data.businessImpact || []).map(b => `<li>${b}</li>`).join('') || '<li>None identified</li>'}</ul>
-                    </div>
-
-                    <div class="section">
-                        <h4>Recommendations</h4>
+                        <h4>Recommendations (if hypothesis confirmed)</h4>
                         ${recsHtml}
                     </div>
 
                     <div class="section">
-                        <h4>RAG Context Used (${(data.contextUsed || []).length} documents)</h4>
-                        ${contextHtml || '<p style="color:#71767b">No context retrieved</p>'}
+                        <h4>Context Sources (${(data.contextUsed || []).length} documents)</h4>
+                        ${contextHtml || '<p style="color:#71767b">No similar incidents found</p>'}
                     </div>
                 </div>
             `;

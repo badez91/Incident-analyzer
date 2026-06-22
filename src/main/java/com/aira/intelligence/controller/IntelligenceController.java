@@ -1,6 +1,6 @@
 package com.aira.intelligence.controller;
 
-import com.aira.common.dto.RcaResult;
+import com.aira.common.dto.InvestigationResult;
 import com.aira.common.exception.ResourceNotFoundException;
 import com.aira.document.service.ContentExtractor;
 import com.aira.document.service.DocumentIntelligenceService;
@@ -40,28 +40,30 @@ public class IntelligenceController {
     }
 
     @PostMapping
-    public ResponseEntity<RcaResult> analyze(@Valid @RequestBody AnalyzeRequest request) {
+    public ResponseEntity<InvestigationResult> analyze(@Valid @RequestBody AnalyzeRequest request) {
         UUID incidentId = request.incidentId() != null ? request.incidentId() : UUID.randomUUID();
 
-        RcaResult result = rcaEngine.analyze(
+        InvestigationResult result = rcaEngine.investigate(
                 incidentId,
                 request.serviceName(),
                 request.summary(),
                 request.exceptionType(),
-                request.components()
+                request.components(),
+                null, null, null
         );
 
         return ResponseEntity.ok(result);
     }
 
     @PostMapping("/jira/{key}")
-    public ResponseEntity<RcaResult> analyzeFromJira(@PathVariable String key) {
-        log.info("Analyzing Jira ticket: {}", key);
+    public ResponseEntity<InvestigationResult> analyzeFromJira(@PathVariable String key) {
+        log.info("Investigating Jira ticket: {}", key);
 
+        // Step 1: Fetch the ticket
         JiraIssueDto issue = jiraConnector.getIssue(key)
                 .orElseThrow(() -> new ResourceNotFoundException("Jira issue", key));
 
-        // Process via DocumentIntelligenceService (includes attachment OCR) → stores in Knowledge
+        // Step 2: Process via Document Intelligence → stores in Knowledge
         EngineeringDocumentEntity doc = documentIntelligenceService.processJiraTicket(
                 issue.key(),
                 issue.summary(),
@@ -72,17 +74,49 @@ public class IntelligenceController {
                 issue.attachments()
         );
 
-        // Extract analysis parameters from combined content
-        String serviceName = contentExtractor.extractServiceName(issue.key());
+        // Step 3: Extract keywords from the ticket for similarity search
         String fullText = (issue.summary() != null ? issue.summary() : "") + " " +
                 (issue.description() != null ? issue.description() : "");
+        List<String> keywords = contentExtractor.extractKeywords(fullText);
         List<String> exceptions = contentExtractor.extractExceptionTypes(fullText);
         String exceptionType = exceptions.isEmpty() ? null : exceptions.get(0);
         List<String> components = contentExtractor.extractComponents(fullText);
 
-        // Run RCA
+        // Step 4: Search Jira for similar RESOLVED tickets (same type, keyword match)
+        List<JiraIssueDto> similarTickets = jiraConnector.findSimilarResolved(
+                issue.key(),
+                issue.issueType(),
+                keywords,
+                2
+        );
+
+        log.info("Found {} similar resolved tickets for {} (type: {})",
+                similarTickets.size(), key, issue.issueType());
+
+        // Step 5: Process similar tickets in parallel (their RCA comments become context)
+        similarTickets.parallelStream().forEach(similar ->
+                documentIntelligenceService.processJiraTicket(
+                        similar.key(),
+                        similar.summary(),
+                        similar.description(),
+                        similar.priority(),
+                        similar.comments(),
+                        similar.labels(),
+                        null  // skip attachments for similar tickets — save time
+                )
+        );
+
+        // Step 6: Run RCA with full context (comments for RCA detection + source code lookup)
+        String serviceName = contentExtractor.extractServiceName(issue.key());
+        // Extend fullText with comments for source code reference extraction
+        String allTicketText = fullText;
+        if (issue.comments() != null && !issue.comments().isEmpty()) {
+            allTicketText += "\n" + String.join("\n", issue.comments());
+        }
+
         UUID incidentId = UUID.randomUUID();
-        RcaResult result = rcaEngine.analyze(incidentId, serviceName, issue.summary(), exceptionType, components);
+        InvestigationResult result = rcaEngine.investigate(incidentId, serviceName, issue.summary(),
+                exceptionType, components, issue.key(), allTicketText, issue.comments());
 
         return ResponseEntity.ok(result);
     }

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This plan reflects AIRA as a modular monolith Spring Boot platform for autonomous engineering investigation. Tasks cover the implemented foundation (Phases 1-2), current work (Phase 3), and the future roadmap (Phases 4-8). The application builds with Maven using forked JDK 17 compilation and deploys as a single Spring Boot JAR.
+This plan reflects AIRA as a modular monolith Spring Boot platform for autonomous engineering investigation. AIRA produces investigation reports with hypotheses and missing information — not definitive RCA. Tasks cover the implemented work and future roadmap.
 
 ## Tasks
 

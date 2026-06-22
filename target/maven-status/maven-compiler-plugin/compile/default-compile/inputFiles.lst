@@ -1,7 +1,10 @@
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/intelligence/controller/IntelligenceController.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/intelligence/service/ResponseParser.java
+/Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/logs/LogReaderService.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/jira/JiraIssueDto.java
+/Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/logs/LogController.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/document/service/AttachmentProcessor.java
+/Users/faizfarhan/POC/AIRA/src/main/java/com/aira/common/dto/InvestigationResult.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/knowledge/repository/EngineeringDocumentRepository.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/knowledge/controller/KnowledgeController.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/document/service/ContentExtractor.java
@@ -20,10 +23,14 @@
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/incident/entity/IncidentEntity.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/common/enums/Severity.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/jira/JiraController.java
+/Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/sourcecode/SourceCodeService.java
+/Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/confluence/ConfluencePageDto.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/incident/repository/IncidentRepository.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/jira/JiraAttachmentDto.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/incident/controller/IncidentController.java
+/Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/confluence/ConfluenceController.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/intelligence/service/OllamaClient.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/common/exception/ResourceNotFoundException.java
+/Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/confluence/ConfluenceConnector.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/common/dto/RcaResult.java
 /Users/faizfarhan/POC/AIRA/src/main/java/com/aira/integration/jira/JiraConnector.java

@@ -2,9 +2,9 @@
 
 ## Introduction
 
-This document defines the requirements for AIRA (Automated Investigation and Response Algorithm) — a modular monolith Spring Boot platform that performs automated incident investigation, RAG-based engineering knowledge retrieval, and AI-powered Root Cause Analysis. AIRA is designed as an autonomous engineering investigation system that evolves into a self-improving engineering intelligence copilot.
+This document defines the requirements for AIRA (Automated Investigation and Response Algorithm) — a modular monolith Spring Boot platform that performs automated incident investigation using RAG-based engineering knowledge retrieval. AIRA produces investigation reports with hypotheses and identifies missing information, rather than declaring definitive root causes without sufficient evidence.
 
-AIRA is NOT just an RCA tool. It is an autonomous engineering investigation system with a roadmap toward bug prediction, architecture recommendations, smart reporting, and AI agent-based workflows.
+AIRA is NOT an RCA tool. It is an autonomous engineering investigation system that asks for additional information when evidence is insufficient.
 
 ## Glossary
 
@@ -17,7 +17,8 @@ AIRA is NOT just an RCA tool. It is an autonomous engineering investigation syst
 - **RAG**: Retrieval-Augmented Generation — retrieve relevant context from knowledge store before sending to LLM.
 - **Hybrid Search**: Retrieval combining metadata filtering (SQL), vector similarity (pgvector), and keyword search.
 - **Document Intelligence**: The pipeline that parses raw content (Jira/Confluence/attachments) into structured EngineeringDocuments. No AI logic here.
-- **Intelligence Engine**: The AIRA core reasoning engine that generates RCA using only RAG-retrieved context.
+- **Intelligence Engine**: The AIRA core investigation engine that produces hypotheses using only RAG-retrieved context. Does NOT claim definitive root causes without sufficient evidence.
+- **InvestigationResult**: The output of analysis containing status (NEEDS_INFO/HYPOTHESIS/CONFIRMED), hypothesis, evidence found, missing info, questions to ask, and next steps.
 - **Agent**: Future autonomous workflow unit that orchestrates investigation tasks using Knowledge, Intelligence, and Integration services.
 - **Ollama**: Local LLM inference server (Qwen models for RCA, nomic-embed-text for embeddings).
 
@@ -84,24 +85,25 @@ AIRA is NOT just an RCA tool. It is an autonomous engineering investigation syst
 8. THE Document Intelligence domain SHALL contain NO AI logic — only parsing, extraction, and normalization.
 9. THE system SHALL support future parsing of: ADF format (Jira), Confluence wiki markup, table extraction, and attachment OCR/vision.
 
-### Requirement 5: Intelligence Domain (AIRA Core Reasoning Engine)
+### Requirement 5: Intelligence Domain (AIRA Investigation Engine)
 
-**User Story:** As a platform user, I want AI-powered root cause analysis that receives ONLY RAG-retrieved context (never raw Jira data), so that investigations are fast, token-efficient, and enriched with historical knowledge.
+**User Story:** As a platform user, I want AI-powered investigation that gathers context from multiple sources and asks for additional information when evidence is insufficient, rather than guessing a root cause.
 
 #### Acceptance Criteria
 
-1. WHEN POST /api/analyze is called with serviceName and summary, THE system SHALL execute the RCA pipeline: retrieve context → build prompt → call Ollama → parse response.
-2. WHEN POST /api/analyze/jira/{key} is called, THE system SHALL fetch the Jira ticket, process it via Document Intelligence into the knowledge base, then run RCA using ONLY knowledge store context.
-3. THE LLM SHALL NEVER receive raw Jira data, full comments, or attachment contents. Only RAG-retrieved context.
-4. THE system SHALL retrieve up to 5 similar incidents + up to 3 RCA documents from the knowledge base before building the LLM prompt.
-5. THE system SHALL build a compact prompt targeting <2000 tokens per request with high signal, low noise.
-6. THE system SHALL call Ollama with the prompt and parse the response as structured JSON (rootCause, confidence, severity, businessImpact, recommendations, summary).
-7. WHEN Ollama returns non-JSON or malformed response, THE system SHALL fall back to free-text extraction with confidence set to 30%.
-8. WHEN Ollama is unreachable or returns null, THE system SHALL return a fallback result rather than failing.
-9. THE system SHALL return an RcaResult containing: incidentId, severity, rootCause, confidencePercent, businessImpact, recommendations (immediate/shortTerm/longTerm), summary, contextUsed, tokensUsed, inferenceTimeMs, analyzedAt.
-10. THE system SHALL achieve >90% reduction in LLM token usage compared to sending raw data.
-11. THE system SHALL achieve <10 seconds RCA response time.
-12. THE Intelligence domain SHALL support future capabilities: bug prediction, architecture recommendations, risk scoring.
+1. WHEN POST /api/analyze is called, THE system SHALL execute the investigation pipeline: retrieve knowledge context → search Confluence → check logs → check source code → build prompt → call Ollama → parse response.
+2. WHEN POST /api/analyze/jira/{key} is called, THE system SHALL fetch the ticket, process it, search for similar resolved tickets, gather Confluence/logs/source context, then investigate.
+3. THE LLM SHALL NEVER receive raw Jira data. Only RAG-retrieved context from the Knowledge Store and other configured sources.
+4. THE system SHALL return an InvestigationResult with status: NEEDS_INFO (confidence <50%), HYPOTHESIS (50-79%), or CONFIRMED (80%+).
+5. WHEN evidence is insufficient, THE system SHALL populate `missingInfo` (what data is needed) and `questionsToAsk` (specific questions for the team) rather than fabricating a root cause.
+6. THE system SHALL include `nextSteps` — concrete investigation actions to take next.
+7. THE system SHALL include `evidenceFound` — what data supports the hypothesis.
+8. THE system SHALL detect existing RCA comments in Jira (keywords: "root cause", "timeline", "resolution") and include them as investigation context.
+9. THE system SHALL search Confluence for related documentation (runbooks, TSD, troubleshooting guides) using service/exception keywords.
+10. THE system SHALL read local server logs (grepping for errors/exceptions) when `logs.base-path` is configured.
+11. THE system SHALL extract source code context from configured local repos when stack traces or class references are found in the ticket.
+12. THE system SHALL achieve >90% reduction in LLM token usage compared to sending raw data.
+13. THE system SHALL achieve <15 seconds total investigation time.
 
 ### Requirement 6: Integration Domain (System Connectors)
 

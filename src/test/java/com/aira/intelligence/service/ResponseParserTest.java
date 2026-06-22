@@ -1,5 +1,6 @@
 package com.aira.intelligence.service;
 
+import com.aira.common.dto.InvestigationResult;
 import com.aira.common.dto.RcaResult;
 import com.aira.common.dto.RetrievedContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,63 +25,87 @@ class ResponseParserTest {
     }
 
     @Test
-    void parseRcaResponse_handlesValidJson() {
+    void parseInvestigationResponse_handlesValidJson() {
         String json = """
                 {
-                  "rootCause": "Database connection pool exhausted",
+                  "hypothesis": "Database connection pool exhausted due to leak in batch processor",
                   "confidence": 85,
                   "severity": "HIGH",
-                  "businessImpact": ["Payment delays", "Customer complaints"],
+                  "evidenceFound": ["Timeout errors in logs", "Pool metrics at 100%"],
+                  "missingInfo": ["Deployment history"],
+                  "questionsToAsk": ["Was there a recent deployment?"],
+                  "nextSteps": ["Check connection pool metrics"],
                   "recommendations": {
                     "immediate": ["Increase pool size"],
                     "shortTerm": ["Add connection monitoring"],
-                    "longTerm": ["Migrate to connection-less architecture"]
+                    "longTerm": ["Fix the connection leak"]
                   },
-                  "summary": "DB pool exhaustion causing timeouts"
+                  "summary": "Likely connection pool exhaustion — need deployment history to confirm"
                 }
                 """;
 
-        RcaResult result = responseParser.parseRcaResponse(json, incidentId, emptyContext, 1000);
+        InvestigationResult result = responseParser.parseInvestigationResponse(json, incidentId, emptyContext, 1000);
 
         assertThat(result.incidentId()).isEqualTo(incidentId);
-        assertThat(result.rootCause()).isEqualTo("Database connection pool exhausted");
+        assertThat(result.hypothesis()).contains("Database connection pool exhausted");
         assertThat(result.confidencePercent()).isEqualTo(85);
-        assertThat(result.severity()).isEqualTo("HIGH");
-        assertThat(result.businessImpact()).contains("Payment delays");
-        assertThat(result.recommendations().get("immediate")).contains("Increase pool size");
+        assertThat(result.status()).isEqualTo("HYPOTHESIS"); // 85% but has missingInfo
+        assertThat(result.evidenceFound()).contains("Timeout errors in logs");
+        assertThat(result.missingInfo()).contains("Deployment history");
+        assertThat(result.questionsToAsk()).contains("Was there a recent deployment?");
     }
 
     @Test
-    void parseRcaResponse_handlesJsonEmbeddedInText() {
+    void parseInvestigationResponse_handlesJsonEmbeddedInText() {
         String response = "Here is my analysis:\n" +
-                "{\"rootCause\": \"Memory leak\", \"confidence\": 70, \"severity\": \"MEDIUM\", " +
-                "\"businessImpact\": [], \"recommendations\": {\"immediate\": [], \"shortTerm\": [], \"longTerm\": []}, " +
-                "\"summary\": \"Memory issue\"}\n" +
-                "Let me know if you need more.";
+                "{\"hypothesis\": \"Memory leak in service\", \"confidence\": 70, \"severity\": \"MEDIUM\", " +
+                "\"evidenceFound\": [\"OOM errors\"], \"missingInfo\": [\"heap dump\"], " +
+                "\"questionsToAsk\": [], \"nextSteps\": [\"collect heap dump\"], " +
+                "\"recommendations\": {\"immediate\": [], \"shortTerm\": [], \"longTerm\": []}, " +
+                "\"summary\": \"Likely memory leak\"}\n";
 
-        RcaResult result = responseParser.parseRcaResponse(response, incidentId, emptyContext, 500);
+        InvestigationResult result = responseParser.parseInvestigationResponse(response, incidentId, emptyContext, 500);
 
-        assertThat(result.rootCause()).isEqualTo("Memory leak");
+        assertThat(result.hypothesis()).isEqualTo("Memory leak in service");
         assertThat(result.confidencePercent()).isEqualTo(70);
+        assertThat(result.status()).isEqualTo("HYPOTHESIS");
     }
 
     @Test
-    void parseRcaResponse_fallsBackToFreeText() {
-        String freeText = "The root cause is a network timeout between services. " +
-                "Recommendation: add circuit breaker pattern.";
+    void parseInvestigationResponse_fallsBackToNeedsInfo() {
+        String freeText = "I need more information to investigate this properly.";
 
-        RcaResult result = responseParser.parseRcaResponse(freeText, incidentId, emptyContext, 300);
+        InvestigationResult result = responseParser.parseInvestigationResponse(freeText, incidentId, emptyContext, 300);
 
         assertThat(result.incidentId()).isEqualTo(incidentId);
-        assertThat(result.rootCause()).contains("network timeout");
-        assertThat(result.confidencePercent()).isEqualTo(30); // low confidence for free text
+        assertThat(result.status()).isEqualTo("NEEDS_INFO");
+        assertThat(result.confidencePercent()).isEqualTo(20);
+        assertThat(result.missingInfo()).isNotEmpty();
+        assertThat(result.questionsToAsk()).isNotEmpty();
     }
 
     @Test
-    void parseRcaResponse_handlesNullResponse() {
-        RcaResult result = responseParser.parseRcaResponse(null, incidentId, emptyContext, 100);
+    void parseInvestigationResponse_handlesNull() {
+        InvestigationResult result = responseParser.parseInvestigationResponse(null, incidentId, emptyContext, 100);
 
         assertThat(result.incidentId()).isEqualTo(incidentId);
-        assertThat(result.rootCause()).isNotEmpty();
+        assertThat(result.status()).isEqualTo("NEEDS_INFO");
+        assertThat(result.confidencePercent()).isEqualTo(0);
+        assertThat(result.missingInfo()).isNotEmpty();
+        assertThat(result.questionsToAsk()).isNotEmpty();
+    }
+
+    @Test
+    void parseRcaResponse_backwardCompatible() {
+        String json = """
+                {"hypothesis": "Test cause", "confidence": 60, "severity": "LOW",
+                 "evidenceFound": [], "missingInfo": [], "questionsToAsk": [], "nextSteps": [],
+                 "recommendations": {"immediate": [], "shortTerm": [], "longTerm": []},
+                 "summary": "test"}
+                """;
+
+        RcaResult result = responseParser.parseRcaResponse(json, incidentId, emptyContext, 500);
+        assertThat(result.rootCause()).isEqualTo("Test cause");
+        assertThat(result.confidencePercent()).isEqualTo(60);
     }
 }

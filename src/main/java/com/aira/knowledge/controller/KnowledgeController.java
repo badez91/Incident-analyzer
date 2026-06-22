@@ -42,19 +42,24 @@ public class KnowledgeController {
     }
 
     /**
-     * Find similar documents by reference ID — looks up the document first,
-     * then finds similar ones based on its metadata.
+     * Find similar documents by reference ID — uses content-based similarity
+     * on description/RCA content, with self-exclusion.
      */
     @GetMapping("/similar")
     public ResponseEntity<List<EngineeringDocumentEntity>> findSimilar(
-            @RequestParam String referenceId) {
+            @RequestParam String referenceId,
+            @RequestParam(defaultValue = "5") int limit) {
 
         return knowledgeService.findByReference(referenceId)
                 .map(doc -> {
-                    List<EngineeringDocumentEntity> similar = knowledgeService.searchByMetadata(
-                            doc.getServiceName(), doc.getExceptionType(), 5);
-                    // Exclude the document itself from results
-                    similar.removeIf(d -> d.getId().equals(doc.getId()));
+                    // Use the document's actual content for similarity search
+                    List<EngineeringDocumentEntity> similar = knowledgeService.findSimilar(
+                            doc.getSummary(),       // search by content, not service name
+                            doc.getExceptionType(),
+                            null,
+                            limit,
+                            referenceId  // exclude self
+                    );
                     return ResponseEntity.ok(similar);
                 })
                 .orElse(ResponseEntity.notFound().build());

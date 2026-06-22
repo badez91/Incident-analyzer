@@ -37,6 +37,21 @@ jira:
 integration:
   output-dir: ${OUTPUT_DIR:./output}
 
+# Confluence integration
+confluence:
+  base-url: ${CONFLUENCE_BASE_URL:https://ctosrepo.atlassian.net/wiki}
+  username: ${CONFLUENCE_USERNAME:faiz@ctos.com.my}
+  api-token: ${CONFLUENCE_API_TOKEN:}
+  space-key: ${CONFLUENCE_SPACE_KEY:}
+
+# Log reader (optional — disabled if path is empty)
+logs:
+  base-path: ${LOGS_BASE_PATH:}
+
+# Source code repos (optional — comma-separated local paths)
+sourcecode:
+  repo-paths: ${SOURCE_REPO_PATHS:}
+
 management:
   endpoints:
     web:

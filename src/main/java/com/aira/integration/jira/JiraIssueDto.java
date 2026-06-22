@@ -6,6 +6,7 @@ public record JiraIssueDto(
     String key,
     String summary,
     String description,
+    String issueType,
     String priority,
     String status,
     String assignee,

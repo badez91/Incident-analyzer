@@ -1,5 +1,6 @@
 package com.aira.intelligence.service;
 
+import com.aira.common.dto.InvestigationResult;
 import com.aira.common.dto.RcaResult;
 import com.aira.common.dto.RetrievedContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -17,94 +18,134 @@ public class ResponseParser {
     private static final Logger log = LoggerFactory.getLogger(ResponseParser.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    public RcaResult parseRcaResponse(String rawResponse, UUID incidentId,
-                                       List<RetrievedContext> context, long inferenceMs) {
+    /**
+     * Parse LLM response into InvestigationResult.
+     */
+    public InvestigationResult parseInvestigationResponse(String rawResponse, UUID incidentId,
+                                                           List<RetrievedContext> context, long inferenceMs) {
         if (rawResponse == null || rawResponse.isBlank()) {
-            return buildFallbackResult(incidentId, context, inferenceMs);
+            return buildNeedsInfoResult(incidentId, context, inferenceMs);
         }
 
-        // Attempt JSON parse first
         try {
             String jsonStr = extractJsonBlock(rawResponse);
             JsonNode root = objectMapper.readTree(jsonStr);
 
-            String rootCause = getTextOrDefault(root, "rootCause", rawResponse);
-            int confidence = root.has("confidence") ? root.get("confidence").asInt(50) : 50;
+            String hypothesis = getTextOrDefault(root, "hypothesis", null);
+            int confidence = root.has("confidence") ? root.get("confidence").asInt(30) : 30;
             String severity = getTextOrDefault(root, "severity", "MEDIUM");
-
-            List<String> businessImpact = parseStringArray(root, "businessImpact");
+            List<String> evidenceFound = parseStringArray(root, "evidenceFound");
+            List<String> missingInfo = parseStringArray(root, "missingInfo");
+            List<String> questionsToAsk = parseStringArray(root, "questionsToAsk");
+            List<String> nextSteps = parseStringArray(root, "nextSteps");
             Map<String, List<String>> recommendations = parseRecommendations(root);
-            String summary = getTextOrDefault(root, "summary", rootCause);
+            String summary = getTextOrDefault(root, "summary", hypothesis);
+
+            // Determine status based on confidence and available info
+            String status;
+            if (confidence >= 80 && missingInfo.isEmpty()) {
+                status = "CONFIRMED";
+            } else if (confidence >= 50) {
+                status = "HYPOTHESIS";
+            } else {
+                status = "NEEDS_INFO";
+            }
+
+            // If no hypothesis found, try rootCause field (backward compat)
+            if (hypothesis == null || hypothesis.isBlank()) {
+                hypothesis = getTextOrDefault(root, "rootCause", "Insufficient evidence to form hypothesis");
+            }
 
             int tokensUsed = estimateTokens(rawResponse);
 
-            return new RcaResult(
-                    incidentId, severity, rootCause, confidence,
-                    businessImpact, recommendations, summary,
-                    context, tokensUsed, inferenceMs, Instant.now()
+            return new InvestigationResult(
+                    incidentId, severity, status, hypothesis, confidence,
+                    evidenceFound, missingInfo, questionsToAsk, nextSteps,
+                    recommendations, summary, context, tokensUsed, inferenceMs, Instant.now()
             );
         } catch (Exception e) {
-            log.debug("JSON parse failed, attempting free-text extraction: {}", e.getMessage());
+            log.debug("JSON parse failed, using free-text fallback: {}", e.getMessage());
         }
 
-        // Fallback: extract from free text
-        return parseFreeText(rawResponse, incidentId, context, inferenceMs);
+        return parseFreeTextInvestigation(rawResponse, incidentId, context, inferenceMs);
     }
 
-    private RcaResult parseFreeText(String rawResponse, UUID incidentId,
-                                     List<RetrievedContext> context, long inferenceMs) {
+    /**
+     * Backward-compatible: parse into RcaResult (used by existing tests).
+     */
+    public RcaResult parseRcaResponse(String rawResponse, UUID incidentId,
+                                       List<RetrievedContext> context, long inferenceMs) {
+        InvestigationResult inv = parseInvestigationResponse(rawResponse, incidentId, context, inferenceMs);
+        return new RcaResult(
+                inv.incidentId(), inv.severity(), inv.hypothesis(), inv.confidencePercent(),
+                inv.evidenceFound(), inv.recommendations(), inv.summary(),
+                inv.contextUsed(), inv.tokensUsed(), inv.inferenceTimeMs(), inv.analyzedAt()
+        );
+    }
+
+    private InvestigationResult parseFreeTextInvestigation(String rawResponse, UUID incidentId,
+                                                            List<RetrievedContext> context, long inferenceMs) {
         if (rawResponse == null || rawResponse.isBlank()) {
-            return buildFallbackResult(incidentId, context, inferenceMs);
+            return buildNeedsInfoResult(incidentId, context, inferenceMs);
         }
 
-        String rootCause = extractKeyPhrase(rawResponse, "root cause");
-        if (rootCause == null || rootCause.isBlank()) {
-            rootCause = rawResponse.substring(0, Math.min(rawResponse.length(), 500));
-        }
-
-        String recommendation = extractKeyPhrase(rawResponse, "recommendation");
-        List<String> recs = recommendation != null ? List.of(recommendation) : List.of("Review logs and monitor");
-
-        Map<String, List<String>> recommendations = new HashMap<>();
-        recommendations.put("immediate", recs);
-        recommendations.put("shortTerm", List.of());
-        recommendations.put("longTerm", List.of());
+        String hypothesis = extractKeyPhrase(rawResponse, "hypothesis");
+        if (hypothesis == null) hypothesis = extractKeyPhrase(rawResponse, "root cause");
+        if (hypothesis == null) hypothesis = rawResponse.substring(0, Math.min(rawResponse.length(), 300));
 
         int tokensUsed = estimateTokens(rawResponse);
 
-        return new RcaResult(
-                incidentId, "MEDIUM", rootCause, 30,
-                List.of("Requires manual review"),
-                recommendations,
-                "Auto-extracted from free-text response",
+        return new InvestigationResult(
+                incidentId, "MEDIUM", "NEEDS_INFO", hypothesis, 20,
+                List.of("Limited — extracted from unstructured response"),
+                List.of("Server logs with timestamps around incident time",
+                        "Deployment history for the affected service",
+                        "Stack trace or error output from the application"),
+                List.of("Was there a deployment or config change before this incident?",
+                        "Can you provide the full error log/stack trace?",
+                        "Is this issue still occurring or has it self-recovered?"),
+                List.of("Collect server logs from the affected timeframe",
+                        "Check deployment history for recent changes",
+                        "Verify if the issue is reproducible"),
+                Map.of("immediate", List.of("Investigate further before taking action"),
+                        "shortTerm", List.of(), "longTerm", List.of()),
+                "Investigation incomplete — additional information needed",
                 context, tokensUsed, inferenceMs, Instant.now()
+        );
+    }
+
+    private InvestigationResult buildNeedsInfoResult(UUID incidentId, List<RetrievedContext> context, long inferenceMs) {
+        return new InvestigationResult(
+                incidentId, "MEDIUM", "NEEDS_INFO",
+                "Cannot form hypothesis — insufficient evidence provided",
+                0,
+                List.of(),
+                List.of("Full error message or stack trace",
+                        "Server logs from the time of incident",
+                        "Recent deployment or configuration changes",
+                        "Steps to reproduce the issue"),
+                List.of("What exactly was the user doing when this occurred?",
+                        "When did this start happening?",
+                        "Was there any deployment or change before it started?",
+                        "Is this affecting all users or specific ones?"),
+                List.of("Collect error logs from the application",
+                        "Check recent deployment history",
+                        "Attempt to reproduce in staging environment"),
+                Map.of("immediate", List.of("Gather more information before taking action"),
+                        "shortTerm", List.of(), "longTerm", List.of()),
+                "Cannot investigate without more data",
+                context, 0, inferenceMs, Instant.now()
         );
     }
 
     private String extractJsonBlock(String text) {
         if (text == null) throw new RuntimeException("null response");
-        // Find JSON object in response
         int start = text.indexOf('{');
         int end = text.lastIndexOf('}');
         if (start >= 0 && end > start) {
             return text.substring(start, end + 1);
         }
         throw new RuntimeException("No JSON block found");
-    }
-
-    private RcaResult buildFallbackResult(UUID incidentId, List<RetrievedContext> context, long inferenceMs) {
-        Map<String, List<String>> recommendations = new HashMap<>();
-        recommendations.put("immediate", List.of("Review logs and monitor"));
-        recommendations.put("shortTerm", List.of());
-        recommendations.put("longTerm", List.of());
-
-        return new RcaResult(
-                incidentId, "MEDIUM", "Unable to determine root cause", 0,
-                List.of("Analysis unavailable"),
-                recommendations,
-                "LLM response was empty or unavailable",
-                context, 0, inferenceMs, Instant.now()
-        );
     }
 
     private String getTextOrDefault(JsonNode root, String field, String defaultVal) {
@@ -145,7 +186,6 @@ public class ResponseParser {
         if (idx < 0) return null;
 
         int start = idx + keyword.length();
-        // Skip colon/dash/space after keyword
         while (start < text.length() && (text.charAt(start) == ':' || text.charAt(start) == '-' || text.charAt(start) == ' ')) {
             start++;
         }
@@ -156,7 +196,6 @@ public class ResponseParser {
 
     private int estimateTokens(String text) {
         if (text == null) return 0;
-        // Rough estimate: ~4 chars per token
         return text.length() / 4;
     }
 }

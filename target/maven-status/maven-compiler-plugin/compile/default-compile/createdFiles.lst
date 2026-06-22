@@ -5,7 +5,10 @@ com/aira/knowledge/repository/EngineeringDocumentRepository.class
 com/aira/document/service/AttachmentProcessor.class
 com/aira/intelligence/service/OllamaClient.class
 com/aira/knowledge/service/EmbeddingService.class
+com/aira/integration/confluence/ConfluencePageDto.class
 com/aira/common/exception/ResourceNotFoundException.class
+com/aira/integration/logs/LogReaderService$LogSearchResult.class
+com/aira/document/service/ContentExtractor$SourceReference.class
 com/aira/incident/controller/IncidentController.class
 com/aira/common/dto/RetrievedContext.class
 com/aira/integration/jira/JiraIssueDto.class
@@ -15,6 +18,7 @@ com/aira/document/service/DocumentIntelligenceService.class
 com/aira/common/dto/RcaResult.class
 com/aira/common/exception/ServiceUnavailableException.class
 com/aira/incident/controller/IncidentController$CreateIncidentRequest.class
+com/aira/integration/confluence/ConfluenceController.class
 com/aira/intelligence/controller/IntelligenceController$AnalyzeRequest.class
 com/aira/knowledge/controller/KnowledgeController.class
 com/aira/incident/entity/IncidentEntity.class
@@ -22,12 +26,17 @@ com/aira/knowledge/entity/EngineeringDocumentEntity.class
 com/aira/integration/jira/JiraConnector.class
 com/aira/intelligence/controller/IntelligenceController.class
 com/aira/intelligence/service/RcaEngine.class
+com/aira/integration/confluence/ConfluenceConnector.class
 com/aira/common/enums/Severity.class
 com/aira/common/enums/SourceType.class
 com/aira/knowledge/service/EmbeddingService$EmbeddingResponse.class
 com/aira/incident/repository/IncidentRepository.class
 com/aira/document/service/AttachmentProcessor$AttachmentContent.class
+com/aira/integration/sourcecode/SourceCodeService.class
+com/aira/integration/logs/LogController.class
+com/aira/common/dto/InvestigationResult.class
 com/aira/incident/service/IncidentService.class
 com/aira/document/service/ContentExtractor.class
 com/aira/AiraApplication.class
 com/aira/knowledge/service/KnowledgeService.class
+com/aira/integration/logs/LogReaderService.class
